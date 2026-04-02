@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ScamProof — Fraud Intelligence Platform</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#06090f;--bg2:#090d16;--surface:#0d1525;--card:#0b1220;
+      --border:#162035;--border2:#1e2f4a;
+      --gold:#c8a84b;--gold2:#e2c97e;--gold-glow:rgba(200,168,75,0.15);
+      --blue:#1d4ed8;--blue2:#3b82f6;
+      --fraud:#dc2626;--fraud2:#f87171;
+      --legit:#059669;--legit2:#34d399;
+      --warn:#d97706;--warn2:#fbbf24;
+      --text:#dde4f0;--text2:#7a90b0;--text3:#344760;
+    }
+    html{scroll-behavior:smooth}
+    body{
+      background:var(--bg);color:var(--text);
+      font-family:'IBM Plex Sans',sans-serif;
+      min-height:100vh;overflow-x:hidden;
+    }
+
+    /* Scanlines */
+    body::after{
+      content:'';position:fixed;inset:0;pointer-events:none;z-index:9997;
+      background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,0.04) 3px,rgba(0,0,0,0.04) 4px);
+    }
+
+    /* Ambient bg */
+    body::before{
+      content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+      background:
+        radial-gradient(ellipse 900px 500px at 75% 10%, rgba(29,78,216,0.07) 0%, transparent 70%),
+        radial-gradient(ellipse 600px 400px at 10% 85%, rgba(200,168,75,0.05) 0%, transparent 60%),
+        linear-gradient(rgba(22,32,53,0.5) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22,32,53,0.5) 1px, transparent 1px);
+      background-size:100% 100%,100% 100%,56px 56px,56px 56px;
+    }
+
+    /* ── System bar ── */
+    .sysbar{
+      position:relative;z-index:200;
+      height:28px;background:var(--bg2);
+      border-bottom:1px solid var(--border);
+      display:flex;align-items:center;justify-content:space-between;
+      padding:0 1.5rem;
+    }
+    .sysbar-left{display:flex;align-items:center;gap:1.2rem}
+    .sys-item{
+      display:flex;align-items:center;gap:5px;
+      font-family:'IBM Plex Mono',monospace;
+      font-size:0.6rem;letter-spacing:0.5px;color:var(--text3);
+    }
+    .sys-dot{
+      width:5px;height:5px;border-radius:50%;flex-shrink:0;
+      animation:blink 2.5s ease-in-out infinite;
+    }
+    .sys-dot.on{background:var(--legit2);box-shadow:0 0 5px var(--legit)}
+    .sys-dot.warn{background:var(--warn2);box-shadow:0 0 5px var(--warn);animation-duration:1s}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+    .sysbar-right{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:0.6rem;color:var(--text3);letter-spacing:0.5px;
+    }
+
+    /* ── Header ── */
+    header{
+      position:relative;z-index:200;
+      height:58px;padding:0 1.8rem;
+      display:flex;align-items:center;justify-content:space-between;
+      background:rgba(6,9,15,0.9);
+      border-bottom:1px solid var(--border);
+      backdrop-filter:blur(20px);
+    }
+    .logo-group{display:flex;align-items:center;gap:11px;text-decoration:none}
+    .logo-icon{
+      width:32px;height:32px;border-radius:7px;
+      background:linear-gradient(145deg,#b8902a,var(--gold2));
+      display:flex;align-items:center;justify-content:center;
+      font-size:1rem;flex-shrink:0;
+      box-shadow:0 0 18px rgba(200,168,75,0.3);
+    }
+    .logo-copy{}
+    .logo-name{
+      font-weight:700;font-size:1.05rem;letter-spacing:-0.3px;
+      color:var(--text);line-height:1;
+    }
+    .logo-name b{color:var(--gold)}
+    .logo-tag{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:0.52rem;color:var(--text3);
+      letter-spacing:1.8px;text-transform:uppercase;
+      display:block;margin-top:2px;
+    }
+    nav{display:flex;align-items:center;gap:2px}
+    .nav-link{
+      padding:5px 12px;border-radius:6px;
+      font-size:0.77rem;font-weight:500;
+      color:var(--text2);text-decoration:none;
+      border:1px solid transparent;
+      transition:all .15s;
+    }
+    .nav-link:hover{color:var(--text);background:rgba(255,255,255,0.04);border-color:var(--border)}
+    .nav-link.active{color:var(--gold);border-color:rgba(200,168,75,0.25);background:rgba(200,168,75,0.06)}
+    .nav-sep{width:1px;height:16px;background:var(--border);margin:0 6px}
+    .nav-pill{
+      display:flex;align-items:center;gap:5px;
+      padding:4px 10px;border-radius:20px;
+      background:var(--surface);border:1px solid var(--border);
+      font-family:'IBM Plex Mono',monospace;
+      font-size:0.6rem;color:var(--text3);letter-spacing:0.3px;
+    }
+
+    /* ── Hero ── */
+    .hero{
+      position:relative;z-index:10;
+      max-width:1160px;margin:0 auto;
+      padding:2.8rem 1.8rem 2rem;
+      display:flex;align-items:flex-start;
+      justify-content:space-between;gap:2rem;
+    }
+    @media(max-width:820px){.hero{flex-direction:column}}
+    .hero-left{flex:1;max-width:580px}
+    .hero-eyebrow{
+      display:inline-flex;align-items:center;gap:7px;
+      font-family:'IBM Plex Mono',monospace;
+      font-size:0.62rem;letter-spacing:2px;text-transform:uppercase;
+      color:var(--gold);
+      background:rgba(200,168,75,0.07);
+      border:1px solid rgba(200,168,75,0.2);
+      padding:4px 11px;border-radius:3px;
+      margin-bottom:1.2rem;
+    }
+    .hero-eyebrow::before{
+      content:'';width:6px;height:6px;border-radius:50%;
+      background:var(--gold);box-shadow:0 0 7px var(--gold);
+      animation:blink 2s ease-in-out infinite;
+    }
+    .hero h1{
+      font-size:clamp(1.9rem,3.5vw,2.9rem);
+      font-weight:700;line-height:1.08;
+      letter-spacing:-1px;margin-bottom:.9rem;
+    }
+    .hero h1 .accent{
+      color:var(--gold);
+      background:linear-gradient(90deg,var(--gold),var(--gold2));
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+      background-clip:text;
+    }
+    .hero-desc{
+      color:var(--text2);font-size:.9rem;
+      line-height:1.75;margin-bottom:1.6rem;
+    }
+    .hero-kpis{display:flex;gap:1.8rem;flex-wrap:wrap}
+    .kpi{display:flex;flex-direction:column;gap:2px}
+    .kpi-val{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:1.25rem;font-weight:600;color:var(--gold2);
+    }
+    .kpi-lbl{font-size:.68rem;color:var(--text3);text-transform:uppercase;letter-spacing:.5px}
+    .kpi-sep{width:1px;background:var(--border);align-self:stretch}
+
+    /* Hero right: model registry card */
+    .registry-card{
+      flex-shrink:0;min-width:210px;
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:10px;overflow:hidden;
+    }
+    .rc-head{
+      padding:.7rem 1rem;
+      border-bottom:1px solid var(--border);
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.6rem;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);
+      background:rgba(255,255,255,0.015);
+    }
+    .rc-row{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:.6rem 1rem;border-bottom:1px solid rgba(22,32,53,0.6);
+      font-size:.77rem;
+    }
+    .rc-row:last-child{border-bottom:none}
+    .rc-name{color:var(--text2)}
+    .rc-badge{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.58rem;padding:2px 7px;border-radius:2px;font-weight:600;
+    }
+    .badge-primary{background:rgba(200,168,75,.12);color:var(--gold);border:1px solid rgba(200,168,75,.3)}
+    .badge-active {background:rgba(5,150,105,.1); color:var(--legit2);border:1px solid rgba(5,150,105,.25)}
+    .badge-data   {background:rgba(29,78,216,.1);  color:#93c5fd;    border:1px solid rgba(29,78,216,.25)}
+
+    /* ── Page content layout ── */
+    .content{
+      position:relative;z-index:10;
+      max-width:1160px;margin:0 auto;
+      padding:0 1.8rem 4rem;
+      display:grid;grid-template-columns:1.2fr 0.8fr;
+      gap:1.4rem;align-items:start;
+    }
+    @media(max-width:820px){.content{grid-template-columns:1fr}}
+
+    /* ── Panel ── */
+    .panel{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:10px;overflow:hidden;
+      margin-bottom:1rem;
+    }
+    .panel:last-child{margin-bottom:0}
+    .panel-head{
+      padding:.8rem 1.2rem;
+      border-bottom:1px solid var(--border);
+      display:flex;align-items:center;gap:9px;
+      background:rgba(255,255,255,0.012);
+    }
+    .ph-icon{
+      width:22px;height:22px;border-radius:5px;
+      display:flex;align-items:center;justify-content:center;
+      font-size:.8rem;flex-shrink:0;
+    }
+    .ph-icon.gold{background:rgba(200,168,75,.1);border:1px solid rgba(200,168,75,.2)}
+    .ph-icon.blue{background:rgba(29,78,216,.1); border:1px solid rgba(29,78,216,.2)}
+    .ph-title{font-weight:600;font-size:.82rem;color:var(--text)}
+    .ph-tag{
+      margin-left:auto;
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.57rem;letter-spacing:1px;
+      color:var(--text3);
+    }
+    .panel-body{padding:1.2rem}
+
+    /* ── Fields ── */
+    .field{margin-bottom:1rem}
+    .field:last-of-type{margin-bottom:0}
+    .field label{
+      display:block;font-size:.68rem;font-weight:600;
+      color:var(--text3);text-transform:uppercase;
+      letter-spacing:.9px;margin-bottom:5px;
+    }
+    .field input,.field select{
+      width:100%;background:var(--surface);
+      border:1px solid var(--border);border-radius:7px;
+      color:var(--text);
+      font-family:'IBM Plex Sans',sans-serif;
+      font-size:.85rem;padding:.58rem .88rem;
+      outline:none;appearance:none;
+      transition:border-color .18s,box-shadow .18s;
+    }
+    .field input:focus,.field select:focus{
+      border-color:var(--gold);
+      box-shadow:0 0 0 3px rgba(200,168,75,.09);
+    }
+    .field input::placeholder{color:var(--text3)}
+    select option{background:#0b1220}
+    .amt-wrap{position:relative}
+    .amt-pre{
+      position:absolute;left:10px;top:50%;
+      transform:translateY(-50%);
+      color:var(--gold);font-weight:600;
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.88rem;pointer-events:none;
+    }
+    .amt-wrap input{padding-left:1.6rem}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}
+    .rule{height:1px;background:var(--border);margin:1rem 0}
+
+    /* Chips */
+    .chips{display:flex;flex-wrap:wrap;gap:5px}
+    .chip{
+      padding:4px 10px;border-radius:3px;
+      border:1px solid var(--border);background:var(--surface);
+      color:var(--text3);font-size:.73rem;font-weight:500;
+      cursor:pointer;transition:all .14s;user-select:none;
+    }
+    .chip:hover{border-color:var(--gold);color:var(--text2)}
+    .chip.active{
+      background:rgba(200,168,75,.09);
+      border-color:rgba(200,168,75,.4);
+      color:var(--gold);
+    }
+
+    /* Toggles */
+    .tog-row{display:flex;gap:6px}
+    .tog{
+      flex:1;padding:6px;border-radius:6px;
+      border:1px solid var(--border);background:var(--surface);
+      color:var(--text3);font-size:.75rem;font-weight:500;
+      cursor:pointer;text-align:center;transition:all .14s;
+    }
+    .tog:hover{border-color:var(--border2);color:var(--text)}
+    .tog.on-y{background:rgba(5,150,105,.08);border-color:rgba(5,150,105,.35);color:var(--legit2)}
+    .tog.on-n{background:rgba(220,38,38,.08); border-color:rgba(220,38,38,.35); color:var(--fraud2)}
+
+    /* Submit */
+    .btn-run{
+      width:100%;margin-top:1rem;
+      padding:.82rem;
+      background:linear-gradient(135deg,#a87c20,#c8a84b,#ddb84e);
+      border:none;border-radius:7px;
+      color:#06090f;
+      font-family:'IBM Plex Sans',sans-serif;
+      font-weight:700;font-size:.88rem;
+      cursor:pointer;letter-spacing:.3px;
+      transition:all .2s;
+      box-shadow:0 3px 18px rgba(200,168,75,.22);
+    }
+    .btn-run:hover{
+      transform:translateY(-1px);
+      box-shadow:0 6px 26px rgba(200,168,75,.38);
+    }
+    .btn-run:active{transform:translateY(0)}
+    .btn-run:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+
+    /* Advanced lookup */
+    .adv-head{cursor:pointer;user-select:none}
+    .adv-head:hover .ph-title{color:var(--gold)}
+    .adv-chevron{font-size:.7rem;margin-left:auto;color:var(--text3);transition:transform .2s}
+    .adv-chevron.open{transform:rotate(180deg)}
+    .txn-row{display:flex;gap:7px}
+    .txn-row input{
+      flex:1;background:var(--surface);
+      border:1px solid var(--border);border-radius:7px;
+      color:var(--text);padding:.58rem .88rem;
+      font-size:.83rem;outline:none;
+      font-family:'IBM Plex Mono',monospace;
+      transition:border-color .18s;
+    }
+    .txn-row input:focus{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+    .btn-fetch{
+      padding:.58rem .95rem;
+      background:rgba(29,78,216,.1);
+      border:1px solid rgba(29,78,216,.3);
+      border-radius:7px;color:#93c5fd;
+      font-size:.75rem;font-weight:600;
+      cursor:pointer;white-space:nowrap;
+      transition:all .15s;
+    }
+    .btn-fetch:hover{background:rgba(29,78,216,.2);border-color:rgba(59,130,246,.5)}
+
+    /* Alert */
+    .alert{
+      display:flex;align-items:flex-start;gap:7px;
+      padding:.6rem .85rem;border-radius:5px;
+      font-size:.75rem;line-height:1.5;margin-bottom:.7rem;
+    }
+    .alert-s{background:rgba(5,150,105,.06);border:1px solid rgba(5,150,105,.2);color:var(--legit2)}
+    .alert-d{background:rgba(220,38,38,.06); border:1px solid rgba(220,38,38,.2); color:var(--fraud2)}
+    .alert-w{background:rgba(217,119,6,.06); border:1px solid rgba(217,119,6,.2);  color:var(--warn2)}
+
+    /* ── Result ── */
+    #result-panel{display:none}
+    .placeholder{
+      display:flex;flex-direction:column;
+      align-items:center;justify-content:center;
+      text-align:center;padding:3.5rem 1.5rem;
+      color:var(--text3);
+    }
+    .ph-shield{
+      width:60px;height:60px;border-radius:14px;
+      background:var(--surface);border:1px solid var(--border);
+      display:flex;align-items:center;justify-content:center;
+      font-size:1.7rem;margin-bottom:1rem;
+      position:relative;overflow:hidden;
+    }
+    .ph-shield::after{
+      content:'';position:absolute;inset:0;
+      background:linear-gradient(135deg,rgba(200,168,75,.06),transparent);
+    }
+    .ph-head{font-weight:600;font-size:.85rem;color:var(--text2);margin-bottom:.35rem}
+    .ph-body{font-size:.75rem;line-height:1.65;max-width:220px}
+
+    /* Verdict block */
+    .verdict{
+      border-radius:8px;padding:1.4rem;
+      text-align:center;margin-bottom:.9rem;
+      position:relative;overflow:hidden;
+    }
+    .verdict::before{
+      content:'';position:absolute;top:0;left:0;right:0;height:1px;
+    }
+    .v-fraud{background:rgba(220,38,38,.05);border:1px solid rgba(220,38,38,.25)}
+    .v-fraud::before{background:linear-gradient(90deg,transparent,var(--fraud),transparent)}
+    .v-legit{background:rgba(5,150,105,.05);border:1px solid rgba(5,150,105,.25)}
+    .v-legit::before{background:linear-gradient(90deg,transparent,var(--legit),transparent)}
+    .v-warn{background:rgba(217,119,6,.05); border:1px solid rgba(217,119,6,.25)}
+    .v-warn::before{background:linear-gradient(90deg,transparent,var(--warn),transparent)}
+    .v-icon{font-size:2.2rem;display:block;margin-bottom:.35rem}
+    .v-label{
+      font-size:1.65rem;font-weight:700;
+      letter-spacing:-.5px;margin-bottom:.2rem;
+    }
+    .v-desc{font-size:.75rem;color:var(--text2);margin-bottom:1rem;line-height:1.5}
+    .prob-hd{
+      display:flex;justify-content:space-between;
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.62rem;color:var(--text3);margin-bottom:5px;
+    }
+    .prob-hd span:last-child{color:var(--text);font-weight:600}
+    .bar-track{height:5px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden}
+    .bar-fill{
+      height:100%;border-radius:3px;width:0%;
+      transition:width 1.1s cubic-bezier(.34,1.56,.64,1);
+    }
+    .bf-fraud{background:linear-gradient(90deg,#991b1b,var(--fraud2))}
+    .bf-legit{background:linear-gradient(90deg,#065f46,var(--legit2))}
+    .bf-warn {background:linear-gradient(90deg,#92400e,var(--warn2))}
+    .risk-badge{
+      display:inline-block;margin-top:.75rem;
+      padding:2px 11px;border-radius:2px;
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.62rem;font-weight:600;letter-spacing:1.5px;
+    }
+    .rb-HIGH  {background:rgba(220,38,38,.12); color:var(--fraud2);border:1px solid rgba(220,38,38,.3)}
+    .rb-MEDIUM{background:rgba(217,119,6,.12); color:var(--warn2); border:1px solid rgba(217,119,6,.3)}
+    .rb-LOW   {background:rgba(5,150,105,.12); color:var(--legit2);border:1px solid rgba(5,150,105,.3)}
+
+    /* Stats */
+    .stats4{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:.8rem}
+    .stat{
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:6px;padding:.6rem .75rem;
+    }
+    .stat-l{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.58rem;color:var(--text3);
+      text-transform:uppercase;letter-spacing:.8px;
+    }
+    .stat-v{font-size:.83rem;font-weight:600;margin-top:3px}
+
+    /* Model compare */
+    .compare{display:flex;flex-direction:column;gap:5px}
+    .cmp-row{
+      display:flex;align-items:center;justify-content:space-between;
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:6px;padding:.5rem .8rem;
+    }
+    .cmp-name{font-size:.72rem;color:var(--text2)}
+    .cmp-verdict{font-size:.72rem;font-weight:700}
+    .cmp-conf{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.67rem;color:var(--text3);
+    }
+    .c-fr{color:var(--fraud2)} .c-lg{color:var(--legit2)}
+
+    /* Spinner */
+    .spinner{
+      display:none;position:fixed;inset:0;
+      background:rgba(6,9,15,.8);
+      backdrop-filter:blur(8px);z-index:9990;
+      align-items:center;justify-content:center;
+    }
+    .spinner.show{display:flex}
+    .spin-inner{text-align:center}
+    .spin-ring{
+      width:40px;height:40px;margin:0 auto .9rem;
+      border:2px solid var(--border);
+      border-top-color:var(--gold);
+      border-radius:50%;
+      animation:spin .7s linear infinite;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .spin-txt{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.65rem;color:var(--text3);letter-spacing:1.5px;
+    }
+
+    @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+    .fade-in{animation:fadeUp .3s ease forwards}
+
+    /* Footer */
+    footer{
+      position:relative;z-index:10;
+      border-top:1px solid var(--border);
+      padding:1rem 1.8rem;
+      display:flex;align-items:center;
+      justify-content:space-between;flex-wrap:wrap;gap:.5rem;
+    }
+    .ft-left{
+      font-family:'IBM Plex Mono',monospace;
+      font-size:.6rem;color:var(--text3);letter-spacing:.3px;
+    }
+    .ft-right{display:flex;gap:1.2rem}
+    .ft-link{
+      font-size:.72rem;color:var(--text3);
+      text-decoration:none;transition:color .15s;
+    }
+    .ft-link:hover{color:var(--gold)}
+  </style>
+</head>
+<body>
+
+<!-- Spinner -->
+<div class="spinner" id="spinner">
+  <div class="spin-inner">
+    <div class="spin-ring"></div>
+    <div class="spin-txt">ANALYSING TRANSACTION</div>
+  </div>
+</div>
+
+<!-- System bar -->
+<div class="sysbar">
+  <div class="sysbar-left">
+    <div class="sys-item"><div class="sys-dot on"></div>ALL SYSTEMS OPERATIONAL</div>
+    <div class="sys-item"><div class="sys-dot on"></div>ML ENGINE READY</div>
+    {% if dataset_available %}
+    <div class="sys-item"><div class="sys-dot on"></div>DATASET: {{ "{:,}".format(dataset_size) }} RECORDS</div>
+    {% else %}
+    <div class="sys-item"><div class="sys-dot warn"></div>DATASET NOT FOUND</div>
+    {% endif %}
+  </div>
+  <div class="sysbar-right" id="clock">--:--:-- UTC</div>
+</div>
+
+<!-- Header -->
+<header>
+  <a href="/" class="logo-group">
+    <div class="logo-icon">🛡</div>
+    <div class="logo-copy">
+      <div class="logo-name">Scam<b>Proof</b></div>
+      <span class="logo-tag">Fraud Intelligence Platform</span>
+    </div>
+  </a>
+  <nav>
+    <a href="/"          class="nav-link active">Analyse</a>
+    <a href="/analytics" class="nav-link">Analytics</a>
+    <a href="/health"    class="nav-link" target="_blank">System</a>
+    <div class="nav-sep"></div>
+    <div class="nav-pill">
+      <div class="sys-dot on" style="width:5px;height:5px"></div>
+      XGBoost v2 · Active
+    </div>
+  </nav>
+</header>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-left">
+    <div class="hero-eyebrow">AI-Powered Transaction Analysis</div>
+    <h1>Detect fraud before<br/>it costs <span class="accent">you.</span></h1>
+    <p class="hero-desc">
+      ScamProof uses ensemble machine learning trained on 1.85 million
+      real-world transactions to identify fraudulent activity in under a second.
+    </p>
+    <div class="hero-kpis">
+      <div class="kpi"><div class="kpi-val">1.85M</div><div class="kpi-lbl">Transactions</div></div>
+      <div class="kpi-sep"></div>
+      <div class="kpi"><div class="kpi-val">3</div><div class="kpi-lbl">ML Models</div></div>
+      <div class="kpi-sep"></div>
+      <div class="kpi"><div class="kpi-val">&lt;1s</div><div class="kpi-lbl">Response</div></div>
+      <div class="kpi-sep"></div>
+      <div class="kpi"><div class="kpi-val">~98%</div><div class="kpi-lbl">ROC-AUC</div></div>
+    </div>
+  </div>
+  <div class="registry-card">
+    <div class="rc-head">Model Registry</div>
+    <div class="rc-row"><span class="rc-name">XGBoost v2</span><span class="rc-badge badge-primary">PRIMARY</span></div>
+    <div class="rc-row"><span class="rc-name">Random Forest</span><span class="rc-badge badge-active">ACTIVE</span></div>
+    <div class="rc-row"><span class="rc-name">Logistic Reg.</span><span class="rc-badge badge-active">ACTIVE</span></div>
+    <div class="rc-row"><span class="rc-name" style="font-size:.7rem;color:var(--text3)">Dataset</span><span class="rc-badge badge-data">Sparkov 2020</span></div>
+  </div>
+</div>
+
+<!-- Content -->
+<div class="content">
+
+  <!-- LEFT -->
+  <div>
+    <div class="panel">
+      <div class="panel-head">
+        <div class="ph-icon gold">💳</div>
+        <span class="ph-title">Transaction Details</span>
+        <span class="ph-tag">REQUIRED</span>
+      </div>
+      <div class="panel-body">
+
+        <div class="field">
+          <label>Transaction Amount</label>
+          <div class="amt-wrap">
+            <span class="amt-pre">$</span>
+            <input type="number" id="f-amt" placeholder="0.00" step="0.01" min="0"/>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Merchant Category</label>
+          <select id="f-category">
+            <option value="grocery_pos">🛒  Grocery — In-store</option>
+            <option value="grocery_net">🛒  Grocery — Online</option>
+            <option value="shopping_pos">🛍  Shopping — In-store</option>
+            <option value="shopping_net">🛍  Shopping — Online</option>
+            <option value="food_dining">🍽  Food &amp; Dining</option>
+            <option value="gas_transport">⛽  Gas &amp; Transport</option>
+            <option value="travel">✈️  Travel</option>
+            <option value="entertainment">🎬  Entertainment</option>
+            <option value="health_fitness">💪  Health &amp; Fitness</option>
+            <option value="personal_care">💅  Personal Care</option>
+            <option value="home">🏠  Home</option>
+            <option value="kids_pets">🐾  Kids &amp; Pets</option>
+            <option value="misc_pos">📦  Other — In-store</option>
+            <option value="misc_net">📦  Other — Online</option>
+          </select>
+        </div>
+
+        <div class="rule"></div>
+
+        <div class="grid2">
+          <div class="field">
+            <label>Time of Transaction</label>
+            <select id="f-hour">
+              <option value="0">12:00 AM  Midnight</option>
+              <option value="1">1:00 AM</option><option value="2">2:00 AM</option>
+              <option value="3">3:00 AM</option><option value="4">4:00 AM</option>
+              <option value="5">5:00 AM</option><option value="6">6:00 AM</option>
+              <option value="7">7:00 AM</option><option value="8">8:00 AM</option>
+              <option value="9">9:00 AM</option><option value="10">10:00 AM</option>
+              <option value="11">11:00 AM</option>
+              <option value="12" selected>12:00 PM  Noon</option>
+              <option value="13">1:00 PM</option><option value="14">2:00 PM</option>
+              <option value="15">3:00 PM</option><option value="16">4:00 PM</option>
+              <option value="17">5:00 PM</option>
+              <option value="18">6:00 PM  Evening</option>
+              <option value="19">7:00 PM</option><option value="20">8:00 PM</option>
+              <option value="21">9:00 PM</option>
+              <option value="22">10:00 PM  Late</option>
+              <option value="23">11:00 PM</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Day of Week</label>
+            <select id="f-dow">
+              <option value="0">Monday</option><option value="1">Tuesday</option>
+              <option value="2">Wednesday</option><option value="3">Thursday</option>
+              <option value="4" selected>Friday</option>
+              <option value="5">Saturday</option><option value="6">Sunday</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="field">
+            <label>Gender</label>
+            <select id="f-gender">
+              <option value="M">Male</option>
+              <option value="F">Female</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Customer Age</label>
+            <input type="number" id="f-age" placeholder="35" min="18" max="100" value="35"/>
+          </div>
+        </div>
+
+        <div class="rule"></div>
+
+        <div class="field">
+          <label>City Population</label>
+          <div class="chips" id="chips-citypop">
+            <div class="chip" data-val="5000">Rural  &lt;10k</div>
+            <div class="chip active" data-val="50000">Small  10k–100k</div>
+            <div class="chip" data-val="300000">Medium  100k–500k</div>
+            <div class="chip" data-val="1000000">Large  500k+</div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Distance — Home to Merchant</label>
+          <div class="chips" id="chips-distance">
+            <div class="chip active" data-val="2">Nearby  &lt;5 km</div>
+            <div class="chip" data-val="20">Local  5–50 km</div>
+            <div class="chip" data-val="150">Far  50–300 km</div>
+            <div class="chip" data-val="1000">Very Far  300 km+</div>
+          </div>
+        </div>
+
+        <div class="rule"></div>
+
+        <div class="field">
+          <label>Detection Model</label>
+          <select id="f-model">
+            <option value="xgboost" selected>XGBoost  —  Recommended</option>
+            <option value="random_forest">Random Forest</option>
+            <option value="logistic_regression">Logistic Regression  —  Baseline</option>
+          </select>
+        </div>
+
+        <button class="btn-run" onclick="submitPrediction()">⚡  Run Fraud Analysis</button>
+
+      </div>
+    </div>
+
+    <!-- Advanced -->
+    <div class="panel">
+      <div class="panel-head adv-head" onclick="toggleAdv()">
+        <div class="ph-icon blue">🔎</div>
+        <span class="ph-title">Transaction ID Lookup</span>
+        <span class="ph-tag" style="color:var(--blue2)">ADVANCED</span>
+        <span class="adv-chevron" id="adv-chev">▾</span>
+      </div>
+      <div id="adv-body" style="display:none">
+        <div class="panel-body">
+          <p style="font-size:.73rem;color:var(--text3);line-height:1.65;margin-bottom:.75rem">
+            Enter a row index from the Sparkov dataset to auto-fill all fields and immediately run analysis.
+          </p>
+          <div id="adv-alert"></div>
+          <div class="txn-row">
+            <input type="text" id="txn-id" placeholder="Transaction ID  e.g. 1000"/>
+            <button class="btn-fetch" onclick="lookupAndPredict()">Fetch &amp; Analyse</button>
+          </div>
+          {% if dataset_available %}
+          <p style="font-family:'IBM Plex Mono',monospace;font-size:.58rem;color:var(--text3);margin-top:6px;letter-spacing:.5px">
+            LOADED · {{ "{:,}".format(dataset_size) }} RECORDS · RANGE 0–{{ dataset_size - 1 }}
+          </p>
+          {% else %}
+          <p style="font-family:'IBM Plex Mono',monospace;font-size:.58rem;color:var(--fraud2);margin-top:6px;letter-spacing:.5px">
+            ⚠ NO DATASET · PLACE fraudTrain.csv + fraudTest.csv IN /data
+          </p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Result -->
+  <div>
+    <div class="panel" id="placeholder-panel">
+      <div class="placeholder">
+        <div class="ph-shield">🛡</div>
+        <div class="ph-head">Awaiting Analysis</div>
+        <div class="ph-body">
+          Enter transaction details and click
+          <strong style="color:var(--gold)">Run Fraud Analysis</strong>
+          to receive an instant ML-powered verdict.
+        </div>
+      </div>
+    </div>
+
+    <div id="result-panel">
+      <div class="panel">
+        <div class="panel-head">
+          <div class="ph-icon gold">📊</div>
+          <span class="ph-title">Analysis Result</span>
+          <span class="ph-tag" id="r-time" style="margin-left:auto"></span>
+        </div>
+        <div class="panel-body">
+          <div class="verdict" id="verdict-block">
+            <span class="v-icon" id="v-icon"></span>
+            <div class="v-label" id="v-label"></div>
+            <div class="v-desc"  id="v-desc"></div>
+            <div class="prob-hd">
+              <span>FRAUD PROBABILITY</span>
+              <span id="v-pct"></span>
+            </div>
+            <div class="bar-track">
+              <div class="bar-fill" id="v-fill"></div>
+            </div>
+            <span class="risk-badge" id="v-risk"></span>
+          </div>
+          <div class="stats4">
+            <div class="stat"><div class="stat-l">Amount</div>    <div class="stat-v" id="s-amt">—</div></div>
+            <div class="stat"><div class="stat-l">Category</div>  <div class="stat-v" id="s-cat" style="font-size:.75rem">—</div></div>
+            <div class="stat"><div class="stat-l">Confidence</div><div class="stat-v" id="s-conf">—</div></div>
+            <div class="stat"><div class="stat-l">Model</div>     <div class="stat-v" id="s-model">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" id="compare-panel" style="display:none">
+        <div class="panel-head">
+          <div class="ph-icon blue">⚖️</div>
+          <span class="ph-title">All Models</span>
+        </div>
+        <div class="panel-body">
+          <div class="compare" id="cmp-rows"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Footer -->
+<footer>
+  <div class="ft-left">ScamProof v2.0 &nbsp;·&nbsp; Sparkov Dataset &nbsp;·&nbsp; XGBoost + Random Forest + Logistic Regression</div>
+  <div class="ft-right">
+    <a href="/analytics" class="ft-link">Analytics</a>
+    <a href="/metrics"   class="ft-link" target="_blank">Metrics API</a>
+    <a href="/health"    class="ft-link" target="_blank">System Health</a>
+  </div>
+</footer>
+
+<script>
+// Clock
+(function tick(){
+  const t=new Date();
+  document.getElementById('clock').textContent=t.toUTCString().match(/\d\d:\d\d:\d\d/)[0]+' UTC';
+  setTimeout(tick,1000);
+})();
+
+// State
+const S={city_pop:50000,distance:2};
+document.querySelectorAll('.chips').forEach(g=>{
+  g.querySelectorAll('.chip').forEach(c=>{
+    c.onclick=()=>{
+      g.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+      c.classList.add('active');
+      S[g.id.replace('chips-','')]=parseFloat(c.dataset.val);
+    };
+  });
+});
+
+function toggleAdv(){
+  const b=document.getElementById('adv-body'),a=document.getElementById('adv-chev');
+  const open=b.style.display==='block';
+  b.style.display=open?'none':'block';
+  a.classList.toggle('open',!open);
+}
+
+function payload(){
+  return{
+    amt:        parseFloat(document.getElementById('f-amt').value)||0,
+    category:   document.getElementById('f-category').value,
+    gender:     document.getElementById('f-gender').value,
+    hour:       +document.getElementById('f-hour').value,
+    day_of_week:+document.getElementById('f-dow').value,
+    age:        +document.getElementById('f-age').value||35,
+    city_pop:   S.city_pop,
+    distance:   S.distance,
+    model:      document.getElementById('f-model').value,
+  };
+}
+
+async function submitPrediction(){
+  const amt=parseFloat(document.getElementById('f-amt').value);
+  if(!amt||amt<=0){alert('Please enter the transaction amount.');return;}
+  const p=payload();
+  spin(true);
+  try{
+    const r=await fetch('/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...p})});
+    const d=await r.json();
+    if(!r.ok){alert(d.error||'Failed');return;}
+    render(d,p.amt,p.category,null);
+    const ap={...p};delete ap.model;
+    fetch('/predict/all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ap)})
+      .then(x=>x.json()).then(renderAll);
+  }catch(e){alert('Network error: '+e.message);}
+  finally{spin(false);}
+}
+
+async function lookupAndPredict(){
+  const id=document.getElementById('txn-id').value.trim();
+  const ae=document.getElementById('adv-alert');
+  if(!id){alert2(ae,'w','Please enter a Transaction ID.');return;}
+  spin(true);
+  try{
+    const lr=await fetch('/lookup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({transaction_id:id})});
+    const ld=await lr.json();
+    if(!lr.ok){alert2(ae,'d',ld.message||ld.error);return;}
+    document.getElementById('f-amt').value=ld.amt;
+    document.getElementById('f-category').value=ld.category;
+    document.getElementById('f-gender').value=ld.gender;
+    document.getElementById('f-hour').value=ld.hour;
+    document.getElementById('f-dow').value=ld.day_of_week;
+    document.getElementById('f-age').value=ld.age;
+    S.city_pop=ld.city_pop; S.distance=ld.distance;
+    const p={amt:ld.amt,category:ld.category,gender:ld.gender,hour:ld.hour,
+             day_of_week:ld.day_of_week,age:ld.age,city_pop:ld.city_pop,
+             distance:ld.distance,model:document.getElementById('f-model').value};
+    const pr=await fetch('/predict',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...p})});
+    const pd=await pr.json();
+    if(!pr.ok){alert(pd.error||'Failed');return;}
+    alert2(ae,ld.true_label===1?'d':'s',
+      `Transaction #${id} loaded · Ground truth: ${ld.true_label===1?'FRAUDULENT':'LEGITIMATE'}`);
+    render(pd,ld.amt,ld.category,id);
+    const ap={...p};delete ap.model;
+    fetch('/predict/all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(ap)})
+      .then(x=>x.json()).then(renderAll);
+  }catch(e){alert2(ae,'d','Network error: '+e.message);}
+  finally{spin(false);}
+}
+
+const CATS={
+  grocery_pos:'Grocery (Store)',grocery_net:'Grocery (Online)',
+  shopping_pos:'Shopping (Store)',shopping_net:'Shopping (Online)',
+  food_dining:'Food & Dining',gas_transport:'Gas / Transport',
+  travel:'Travel',entertainment:'Entertainment',
+  health_fitness:'Health & Fitness',personal_care:'Personal Care',
+  home:'Home',kids_pets:'Kids & Pets',misc_pos:'Other (Store)',misc_net:'Other (Online)'
+};
+const MODS={xgboost:'XGBoost',random_forest:'Random Forest',logistic_regression:'Logistic Regression'};
+
+function render(d,amt,cat,txnId){
+  document.getElementById('placeholder-panel').style.display='none';
+  const p=document.getElementById('result-panel');
+  p.style.display='block';
+  p.classList.remove('fade-in');void p.offsetWidth;p.classList.add('fade-in');
+
+  const f=d.is_fraud,c=d.confidence,r=d.risk_level;
+  const vb=document.getElementById('verdict-block');
+  vb.className='verdict '+(f?'v-fraud':c>40?'v-warn':'v-legit');
+  document.getElementById('v-icon').textContent=f?'🚨':'✅';
+  const vl=document.getElementById('v-label');
+  vl.textContent=d.verdict;vl.style.color=f?'var(--fraud2)':'var(--legit2)';
+  document.getElementById('v-desc').textContent=f
+    ?'This transaction shows characteristics consistent with fraudulent activity.'
+    :'This transaction appears consistent with legitimate activity.';
+  document.getElementById('v-pct').textContent=c.toFixed(2)+'%';
+  const fill=document.getElementById('v-fill');
+  setTimeout(()=>{fill.style.width=c+'%';},50);
+  fill.className='bar-fill '+(f?'bf-fraud':c>40?'bf-warn':'bf-legit');
+  const rb=document.getElementById('v-risk');
+  rb.textContent='● '+r+' RISK';rb.className='risk-badge rb-'+r;
+  document.getElementById('r-time').textContent=new Date().toTimeString().match(/\d\d:\d\d:\d\d/)[0]+' UTC';
+  document.getElementById('s-amt').textContent=amt?'$'+parseFloat(amt).toFixed(2):'—';
+  document.getElementById('s-cat').textContent=CATS[cat]||cat;
+  document.getElementById('s-conf').textContent=c.toFixed(2)+'%';
+  document.getElementById('s-model').textContent=MODS[d.model_used]||d.model_used;
+}
+
+function renderAll(all){
+  const rows=document.getElementById('cmp-rows');
+  rows.innerHTML='';
+  for(const[k,r] of Object.entries(all)){
+    if(r.error)continue;
+    const d=document.createElement('div');d.className='cmp-row';
+    d.innerHTML=`<span class="cmp-name">${MODS[k]}</span>
+      <span class="cmp-verdict ${r.is_fraud?'c-fr':'c-lg'}">${r.verdict}</span>
+      <span class="cmp-conf">${r.confidence.toFixed(1)}%</span>`;
+    rows.appendChild(d);
+  }
+  document.getElementById('compare-panel').style.display='block';
+}
+
+function spin(v){document.getElementById('spinner').classList.toggle('show',v);}
+function alert2(el,t,m){
+  const c={s:'alert-s',d:'alert-d',w:'alert-w'}[t];
+  el.innerHTML=`<div class="alert ${c}">${m}</div>`;
+}
+
+document.getElementById('txn-id').addEventListener('keydown',e=>{if(e.key==='Enter')lookupAndPredict();});
+</script>
+</body>
+</html>
