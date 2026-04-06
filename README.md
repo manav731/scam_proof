@@ -130,7 +130,7 @@ The platform is organised into six layers:
 | Test | `fraudTest.csv` | 555,719 |
 | **Total** | — | **1,852,394** |
 
-**Class imbalance:** ~0.58% fraud rate (approximately 1 in 172 transactions is fraudulent). The test set retains this natural rate to produce honest evaluation metrics..
+**Class imbalance:** ~0.58% fraud rate (approximately 1 in 172 transactions is fraudulent). The test set retains this natural rate to produce honest evaluation metrics.
 
 ---
 
